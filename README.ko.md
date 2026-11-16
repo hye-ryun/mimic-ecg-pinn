@@ -1,11 +1,10 @@
 # MIMIC-ECG PINN — Physics-Informed Neural Network for ECG
 
+[English](README.md) | **한국어**
+
 MIMIC-IV-ECG 12-lead ECG에 **물리 기반 신경망(PINN, Physics-Informed Neural Network)** 을 적용해서,
 심장 전기활동의 동역학 모델(McSharry ECG model)을 만족하면서 ECG를 재구성하고
 **P, Q, R, S, T 파형의 생리학적 파라미터(크기·폭·위치)를 역추정**하는 프로젝트입니다.
-
-> A physics-informed neural network that fits MIMIC-IV-ECG signals while obeying the McSharry
-> cardiac dynamical model, and recovers interpretable P/Q/R/S/T wave parameters (inverse problem).
 
 ![synthetic validation](docs/synthetic_fit.png)
 
