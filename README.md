@@ -29,9 +29,10 @@ and `ω = 2π / RR` the angular frequency estimated from detected R-peaks.
 mimic-ecg-pinn/
 ├── src/
 │   ├── physics.py          # McSharry cardiac dynamical model (ODE, simulation)
-│   ├── pinn.py             # PINN model + training loop
+│   ├── pinn.py             # PINN models (single window / beat-by-beat) + training loop
 │   ├── download_sample.py  # Download sample records from MIMIC-IV-ECG
-│   └── train.py            # Entry point (synthetic / real data)
+│   ├── train.py            # Single-window fit (synthetic / real data)
+│   └── extract_beats.py    # Beat-by-beat parameter extraction over many records
 ├── docs/                   # Figures for the README
 ├── data/                   # (git-ignored) downloaded ECGs
 └── outputs/                # (git-ignored) training results
@@ -51,9 +52,34 @@ python src/download_sample.py --n 3
 
 # 3) Train on a real ECG
 python src/train.py --record data/mimic-iv-ecg/p1000/p10000032/s40689238/40689238 --lead II
+
+# 4) Beat-by-beat parameters for every downloaded record
+python src/download_sample.py --n 20
+python src/extract_beats.py --lead II
 ```
 
 3,000 epochs take about 20–30 seconds on CPU (Apple M1/M2).
+
+## Beat-by-beat extraction
+
+`extract_beats.py` trains **one PINN per 10-second record** but gives **each beat its own physical
+parameters** (a, b, θ for P, Q, R, S, T). The phase runs linearly from one detected R-peak to the next,
+so heart-rate changes between beats are handled.
+
+| Output | Content |
+|---|---|
+| `outputs/beat_params.csv` | One row per beat: `record, subject_id, lead, beat, r_time_s, rr_s, hr_bpm, beat_mse, P_a, P_b, P_theta, …, T_theta, z0, scale, record_data_loss, record_physics_loss` |
+| `outputs/skipped_records.csv` | Records that could not be processed, with the reason (e.g. too few R-peaks) |
+| `outputs/beat_figs/<record>.png` | Measured vs PINN reconstruction with R-peaks marked |
+
+**First run (20 records from 7 subjects, lead II, 3,000 epochs):** 271 beats extracted, 0 records skipped,
+about 40 s per record on CPU. Heart rate ranged 47–199 bpm (mean 88). The amplitude of the T wave varied
+by a median of 16% (coefficient of variation) from beat to beat within a record.
+
+**Observation:** the beats with the largest reconstruction error (`beat_mse`) were **premature (ectopic)
+beats**: early, wide QRS complexes followed by a pause. The McSharry model describes a normal P-QRS-T
+shape, so it does not fit these beats well. This suggests `beat_mse` could be used to flag abnormal beats,
+which is worth testing in the classification step.
 
 ## Synthetic validation (wave amplitudes a_i)
 
@@ -83,7 +109,7 @@ The S wave overlaps in time with the Q and R waves. This makes its parameters ha
 
 ## Roadmap
 
-- [ ] Beat-by-beat parameter estimation, to track how parameters change over time
+- [x] Beat-by-beat parameter estimation, to track how parameters change over time
 - [ ] Joint training on all 12 leads (3D cardiac vector model)
 - [ ] Diagnostic / arrhythmia classification using the estimated parameters as features (linked to MIMIC-IV machine_measurements)
 - [ ] Extension to a PINN based on a cardiac electrophysiology PDE (Aliev–Panfilov)

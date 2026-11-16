@@ -25,9 +25,10 @@ MIMIC-IV-ECG 12-lead ECG에 **물리 기반 신경망(PINN, Physics-Informed Neu
 mimic-ecg-pinn/
 ├── src/
 │   ├── physics.py          # McSharry 심장 동역학 모델 (ODE, 시뮬레이션)
-│   ├── pinn.py             # PINN 모델 + 학습 루프
+│   ├── pinn.py             # PINN 모델 (단일 구간 / 박동별) + 학습 루프
 │   ├── download_sample.py  # MIMIC-IV-ECG 샘플 레코드 다운로드
-│   └── train.py            # 실행 스크립트 (합성 / 실제 데이터)
+│   ├── train.py            # 단일 구간 학습 (합성 / 실제 데이터)
+│   └── extract_beats.py    # 여러 레코드의 박동별 파라미터 추출
 ├── docs/                   # README용 그림
 ├── data/                   # (git 제외) 다운로드한 ECG
 └── outputs/                # (git 제외) 학습 결과
@@ -47,9 +48,32 @@ python src/download_sample.py --n 3
 
 # 3) 실제 ECG로 학습
 python src/train.py --record data/mimic-iv-ecg/p1000/p10000032/s40689238/40689238 --lead II
+
+# 4) 받은 모든 레코드의 박동별 파라미터 추출
+python src/download_sample.py --n 20
+python src/extract_beats.py --lead II
 ```
 
 CPU(M1/M2 Mac)에서 3,000 epoch 약 20–30초.
+
+## 박동별 파라미터 추출
+
+`extract_beats.py`는 **10초 레코드마다 PINN을 하나** 학습하지만, **물리 파라미터(P~T의 a, b, θ)는
+박동마다 따로** 추정합니다. 위상은 검출된 R-peak 사이에서 직선으로 증가하므로 박동 간 심박수 변화도 반영됩니다.
+
+| 출력 | 내용 |
+|---|---|
+| `outputs/beat_params.csv` | 박동 1개당 1줄: `record, subject_id, lead, beat, r_time_s, rr_s, hr_bpm, beat_mse, P_a, P_b, P_theta, …, T_theta, z0, scale, record_data_loss, record_physics_loss` |
+| `outputs/skipped_records.csv` | 처리하지 못한 레코드와 이유 (예: R-peak 부족) |
+| `outputs/beat_figs/<record>.png` | 측정 vs PINN 재구성 그래프 (R-peak 표시) |
+
+**첫 실행 결과 (환자 7명의 레코드 20개, 리드 II, 3,000 epoch):** 박동 271개 추출, 건너뛴 레코드 0개,
+CPU에서 레코드당 약 40초. 심박수는 47–199 bpm(평균 88). 한 레코드 안에서 T파 크기는 박동마다
+중앙값 16%(변동계수) 정도 달라졌습니다.
+
+**관찰:** 재구성 오차(`beat_mse`)가 가장 큰 박동은 **조기 박동(이소성 박동)** 이었습니다. 일찍 나타나는 넓은 QRS와
+그 뒤의 휴지기가 특징입니다. McSharry 모델은 정상 P-QRS-T 모양을 가정하므로 이런 박동을 잘 맞추지 못합니다.
+따라서 `beat_mse`를 이상 박동 표시에 쓸 수 있을지 분류 단계에서 검증해 볼 만합니다.
 
 ## 합성 데이터 검증 결과 (파형 크기 a_i)
 
@@ -78,7 +102,7 @@ S파는 Q·R파와 시간적으로 겹쳐 파라미터 식별성(identifiability
 
 ## 향후 계획 (TODO)
 
-- [ ] 여러 박동(beat-by-beat) 파라미터 추정 → 시간에 따른 변화 추적
+- [x] 여러 박동(beat-by-beat) 파라미터 추정 → 시간에 따른 변화 추적
 - [ ] 12-lead 동시 학습 (3D 심장 벡터 모델)
 - [ ] 추정 파라미터를 특징으로 부정맥/진단 분류 (MIMIC-IV machine_measurements 연계)
 - [ ] 심장 전기생리 PDE(Aliev–Panfilov) 기반 PINN으로 확장
