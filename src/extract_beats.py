@@ -122,14 +122,21 @@ def main():
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--lam", type=float, default=1e-3, help="weight of the physics loss")
     ap.add_argument("--out", default="outputs")
+    ap.add_argument("--shard", default="0/1", help="i/n: process every n-th record starting at i (parallel runs)")
+    ap.add_argument("--threads", type=int, default=None, help="torch CPU threads per process")
     args = ap.parse_args()
     torch.manual_seed(0)
+    if args.threads:
+        torch.set_num_threads(args.threads)
+    shard_i, shard_n = map(int, args.shard.split("/"))
+    tag = "" if shard_n == 1 else f"_shard{shard_i}"
 
     fig_dir = os.path.join(args.out, "beat_figs")
     os.makedirs(fig_dir, exist_ok=True)
     paths = sorted(p[:-4] for p in glob.glob(os.path.join(args.data, "**", "*.hea"), recursive=True))
     if args.max_records:
         paths = paths[: args.max_records]
+    paths = paths[shard_i::shard_n]
     print(f"{len(paths)} records found")
 
     rows, skipped = [], []
@@ -143,9 +150,9 @@ def main():
             skipped.append({"record": os.path.basename(p), "reason": str(e)})
             print(f"[{n}/{len(paths)}] {os.path.basename(p)}: SKIPPED ({e})")
         # Save after every record so partial results survive an interruption
-        pd.DataFrame(rows).to_csv(os.path.join(args.out, "beat_params.csv"), index=False)
+        pd.DataFrame(rows).to_csv(os.path.join(args.out, f"beat_params{tag}.csv"), index=False)
         pd.DataFrame(skipped, columns=["record", "reason"]).to_csv(
-            os.path.join(args.out, "skipped_records.csv"), index=False)
+            os.path.join(args.out, f"skipped_records{tag}.csv"), index=False)
 
     print(f"done: {len(rows)} beats from {len(paths) - len(skipped)} records, {len(skipped)} skipped")
 
