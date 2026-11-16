@@ -82,3 +82,7 @@ S파는 Q·R파와 시간적으로 겹쳐 파라미터 식별성(identifiability
 - [ ] 12-lead 동시 학습 (3D 심장 벡터 모델)
 - [ ] 추정 파라미터를 특징으로 부정맥/진단 분류 (MIMIC-IV machine_measurements 연계)
 - [ ] 심장 전기생리 PDE(Aliev–Panfilov) 기반 PINN으로 확장
+
+## 라이선스
+
+코드: [MIT](LICENSE). MIMIC-IV-ECG 데이터는 포함되지 않으며 자체 라이선스(ODbL v1.0)를 따릅니다.

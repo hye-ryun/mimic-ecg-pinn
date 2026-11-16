@@ -87,3 +87,7 @@ The S wave overlaps in time with the Q and R waves. This makes its parameters ha
 - [ ] Joint training on all 12 leads (3D cardiac vector model)
 - [ ] Diagnostic / arrhythmia classification using the estimated parameters as features (linked to MIMIC-IV machine_measurements)
 - [ ] Extension to a PINN based on a cardiac electrophysiology PDE (Aliev–Panfilov)
+
+## License
+
+Code: [MIT](LICENSE). The MIMIC-IV-ECG data is not included and is governed by its own license (ODbL v1.0).
