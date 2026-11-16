@@ -1,15 +1,15 @@
 """
-ECG PINN 학습 스크립트
+ECG PINN training script
 
-1) 합성 데이터(정답 파라미터를 아는 상태)로 검증:
+1) Validate on synthetic data (ground-truth parameters are known):
     python src/train.py --synthetic
 
-2) MIMIC-IV-ECG 실제 레코드로 학습:
+2) Train on a real MIMIC-IV-ECG record:
     python src/train.py --record data/mimic-iv-ecg/p1000/p10000032/s40689238/40689238 --lead II
 
-입력 : ECG 1개 리드의 3초 구간
-출력 : outputs/<이름>_fit.png        (측정 vs PINN 재구성 + 물리 손실 곡선)
-       outputs/<이름>_params.json    (추정한 P,Q,R,S,T 파라미터, 심박수)
+Input  : a 3-second window of one ECG lead
+Output : outputs/<name>_fit.png        (measured vs PINN reconstruction + loss curves)
+         outputs/<name>_params.json    (estimated P, Q, R, S, T parameters and heart rate)
 """
 import argparse
 import json
@@ -32,7 +32,7 @@ def bandpass(x, fs, lo=0.5, hi=40.0):
 
 
 def estimate_rhythm(x, fs):
-    """R-peak 검출 -> 평균 RR 간격으로 omega, 첫 R-peak 시각 t_r 계산."""
+    """Detect R-peaks -> compute omega from the mean RR interval and t_r (time of the first R-peak)."""
     peaks, _ = find_peaks(x, distance=int(0.3 * fs), height=np.percentile(x, 98) * 0.5)
     rr = np.diff(peaks).mean() / fs
     return 2 * np.pi / rr, peaks[0] / fs, 60.0 / rr
@@ -51,11 +51,11 @@ def load_mimic(record, lead, seconds):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--synthetic", action="store_true")
-    ap.add_argument("--record", help="확장자 없는 WFDB 경로")
+    ap.add_argument("--record", help="WFDB record path without extension")
     ap.add_argument("--lead", default="II")
     ap.add_argument("--seconds", type=float, default=3.0)
     ap.add_argument("--epochs", type=int, default=4000)
-    ap.add_argument("--lam", type=float, default=1e-3, help="물리 손실 가중치")
+    ap.add_argument("--lam", type=float, default=1e-3, help="weight of the physics loss")
     ap.add_argument("--out", default="outputs")
     args = ap.parse_args()
     torch.manual_seed(0)
@@ -66,9 +66,9 @@ def main():
         fs, hr = 250, 72.0
         omega = 2 * np.pi * hr / 60
         t = np.arange(0, args.seconds, 1 / fs)
-        a_true = DEFAULT_A * np.array([1.5, 1.0, 1.0, 0.8, 1.6])   # 기본값과 다른 '정답'
+        a_true = DEFAULT_A * np.array([1.5, 1.0, 1.0, 0.8, 1.6])   # 'ground truth' that differs from the defaults
         z = simulate(t, omega, t_r=0.3, a=a_true)
-        z = z + np.random.default_rng(0).normal(0, 0.02 * np.ptp(z), len(z))  # 측정 잡음
+        z = z + np.random.default_rng(0).normal(0, 0.02 * np.ptp(z), len(z))  # measurement noise
         truth = {w: float(a_true[i]) for i, w in enumerate(WAVES)}
         name = "synthetic"
         omega, t_r, hr = estimate_rhythm(z, fs)
@@ -76,7 +76,7 @@ def main():
     else:
         t, z, fs = load_mimic(args.record, args.lead, args.seconds)
         omega, t_r, hr = estimate_rhythm(z, fs)
-        # 실제 ECG(mV)를 물리 모델 기본 진폭에 맞게 스케일
+        # Scale the real ECG (mV) to match the default amplitude of the physics model
         ref = simulate(t, omega, t_r)
         scale = np.ptp(ref) / np.ptp(z)
         z = z * scale

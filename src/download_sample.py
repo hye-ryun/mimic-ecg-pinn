@@ -1,11 +1,11 @@
 """
-MIMIC-IV-ECG (PhysioNet, Open Access, ODbL) 에서 샘플 레코드 몇 개만 내려받기.
+Download a few sample records from MIMIC-IV-ECG (PhysioNet, Open Access, ODbL).
 
-사용법:
+Usage:
     python src/download_sample.py --n 5
 
-결과: data/mimic-iv-ecg/<p폴더>/<환자>/<study>/<record>.hea/.dat
-※ data/ 폴더는 .gitignore 로 GitHub에 올라가지 않습니다.
+Output: data/mimic-iv-ecg/<p-group>/<subject>/<study>/<record>.hea/.dat
+Note: the data/ folder is git-ignored and is never uploaded to GitHub.
 """
 import argparse
 import os
@@ -23,8 +23,8 @@ def list_records(group="p1000", n=5):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=5, help="받을 레코드 수")
-    ap.add_argument("--group", default="p1000", help="p1000 ~ p1999 중 하나")
+    ap.add_argument("--n", type=int, default=5, help="number of records to download")
+    ap.add_argument("--group", default="p1000", help="one of p1000 to p1999")
     ap.add_argument("--out", default="data/mimic-iv-ecg")
     args = ap.parse_args()
 

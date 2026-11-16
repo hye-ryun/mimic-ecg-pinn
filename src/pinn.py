@@ -1,11 +1,11 @@
 """
 Physics-Informed Neural Network (PINN) for ECG
 
-입력 : 시간 t (초)
-출력 : ECG 전압 z(t)
-손실 : (1) 데이터 손실  = 측정 ECG와의 차이
-       (2) 물리 손실    = McSharry ODE를 얼마나 만족하는지 (dz/dt 는 autograd로 계산)
-학습 대상: 신경망 가중치 + 물리 파라미터(a_i, b_i, theta_i, z0)  ← 역문제(inverse problem)
+Input     : time t (s)
+Output    : ECG voltage z(t)
+Loss      : (1) data loss    = mismatch with the measured ECG
+            (2) physics loss = how well the McSharry ODE is satisfied (dz/dt via autograd)
+Trainable : network weights + physical parameters (a_i, b_i, theta_i, z0)  <- inverse problem
 """
 import numpy as np
 import torch
@@ -24,7 +24,7 @@ class ECGPINN(nn.Module):
         self.omega, self.t_r = float(omega), float(t_r)
         self.k = torch.arange(1, n_harmonics + 1, dtype=torch.float32)
 
-        # 신경망: 위상의 sin/cos 특징 -> z
+        # Neural network: sin/cos features of the phase -> z
         self.net = nn.Sequential(
             nn.Linear(2 * n_harmonics, hidden), nn.Tanh(),
             nn.Linear(hidden, hidden), nn.Tanh(),
@@ -32,7 +32,7 @@ class ECGPINN(nn.Module):
             nn.Linear(hidden, 1),
         )
 
-        # 학습 가능한 '물리' 파라미터 (생리학적으로 해석 가능)
+        # Trainable 'physical' parameters (physiologically interpretable)
         a0 = DEFAULT_A if a_init is None else a_init
         self.a = nn.Parameter(torch.tensor(a0, dtype=torch.float32))
         self.log_b = nn.Parameter(torch.tensor(np.log(DEFAULT_B), dtype=torch.float32))
@@ -48,7 +48,7 @@ class ECGPINN(nn.Module):
         return self.net(feats)
 
     def physics_residual(self, t):
-        """McSharry ODE 잔차: dz/dt - f(z, theta). 0에 가까울수록 물리 법칙을 잘 따름."""
+        """McSharry ODE residual: dz/dt - f(z, theta). Closer to 0 means the physics is better satisfied."""
         t = t.clone().requires_grad_(True)
         z = self(t)
         dz_dt = torch.autograd.grad(z, t, torch.ones_like(z), create_graph=True)[0]
@@ -68,14 +68,14 @@ class ECGPINN(nn.Module):
 
 
 def train(model, t_data, z_data, t_col, epochs=4000, lam=1.0, lr=1e-3, log_every=500):
-    """데이터 손실 + lam * 물리 손실 을 최소화."""
+    """Minimize data loss + lam * physics loss."""
     t_d = torch.tensor(t_data, dtype=torch.float32).view(-1, 1)
     z_d = torch.tensor(z_data, dtype=torch.float32).view(-1, 1)
     t_c = torch.tensor(t_col, dtype=torch.float32).view(-1, 1)
     phys_params = [model.a, model.log_b, model.theta, model.z0]
     opt = torch.optim.Adam([
         {"params": model.net.parameters(), "lr": lr},
-        {"params": phys_params, "lr": lr * 10},   # 물리 파라미터는 더 빠르게
+        {"params": phys_params, "lr": lr * 10},   # physical parameters learn faster
     ])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     history = []
